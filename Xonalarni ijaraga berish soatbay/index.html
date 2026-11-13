@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+
+<html lang="uz"><head><meta charset="utf-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+<title>Roomly — soatbay xona ijarasi</title>
+
+<link rel="stylesheet" href="https\://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" type="image/png" href="/Roomly Orbit House Logo.png">
+
+<style>
+
+</style></head><body>
+
+<header><div class="wrap nav">
+
+<a class="logo" href="#home">Roomly</a>
+
+<form class="sb" id="sf" role="search"><input id="q" type="search" placeholder="Shahar bo‘yicha qidirish…" aria-label="Shahar" list="cities" autocomplete="off"><button class="btn" type="button" id="fb" aria-label="Filtr"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg><span style="display:none" id="fbt">Filtr</span></button></form>
+
+<span class="sp"></span>
+
+<a class="btn p" href="#add-room" aria-label="Xona qo‘shish"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></a>
+
+<a class="btn" href="#profile" aria-label="Profil"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></a>
+
+</div></header>
+
+<datalist id="cities"></datalist>
+
+<main class="wrap" id="app"></main>
+
+<footer><div class="wrap">© Roomly — demo rejim: ma’lumotlar faqat shu brauzerda saqlanadi. To‘lov amalga oshirilmaydi.</div></footer>
+
+<div class="ov" id="ov"><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
+
+<div class="toast" id="toast" role="status"></div>
+
+
+<script>
+
+const EQ=["Wi-Fi","Kompyuter","Proyektor","Konditsioner","Televizor","Doska","Printer","Rozetka"];
+
+const CITIES=["Toshkent","Samarqand","Buxoro","Andijon","Namangan","Farg‘ona","Qarshi","Nukus","Xiva","Urganch"];
+
+const $=s=>document.querySelector(s),esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+const fmt=n=>Number(n).toLocaleString("en-US").replace(/,/g," ");
+
+const mem={};const ls={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):(k in mem?mem[k]:d)}catch(e){return k in mem?mem[k]:d}},set(k,v){mem[k]=v;try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+
+const seed=[
+
+{id:1,ownerId:"demo-owner",owner:"Demo egasi",contact:"+998 90 000 00 01",name:"Meeting Room",city:"Toshkent",district:"Yunusobod",address:"Amir Temur ko‘chasi 10",description:"Yorug‘ va qulay uchrashuv xonasi, markaziy joylashuv.",capacity:4,price:45000,equipment:["Wi-Fi","Proyektor","Konditsioner"],images:[],status:"Approved"},
+
+{id:2,ownerId:"demo-owner",owner:"Demo egasi",contact:"+998 90 000 00 02",name:"Study Room",city:"Samarqand",district:"Registon",address:"Registon ko‘chasi 5",description:"Tinch o‘qish va ishlash uchun xona.",capacity:2,price:25000,equipment:["Wi-Fi","Kompyuter"],images:[],status:"Approved"},
+
+{id:3,ownerId:"demo-owner",owner:"Demo egasi",contact:"+998 90 000 00 03",name:"Conference Room",city:"Buxoro",district:"Markaz",address:"Bahovuddin ko‘chasi 22",description:"Katta anjumanlar va taqdimotlar uchun zal.",capacity:10,price:80000,equipment:["Wi-Fi","Proyektor","Konditsioner","Televizor"],images:[],status:"Approved"},
+
+{id:4,ownerId:"demo-owner",owner:"Demo egasi",contact:"+998 90 000 00 04",name:"Creative Room",city:"Andijon",district:"Shahrixon",address:"Navoiy ko‘chasi 8",description:"Ijodiy ishlar va jamoaviy mashg‘ulotlar uchun xona.",capacity:6,price:55000,equipment:["Wi-Fi","Kompyuter","Televizor"],images:[],status:"Approved"}];
+
+const S={rooms:ls.get("rm_rooms",seed),bookings:ls.get("rm_bookings",[]),favs:ls.get("rm_favs",[]),user:ls.get("rm_user",{id:"demo-user",name:"Demo foydalanuvchi",email:"demo@roomly.uz",demo:true}),q:"",favOnly:false,f:{city:"",district:"",cap:0,eq:[],min:"",max:"",sort:""},draft:[]};
+
+const save=()=>{ls.set("rm_rooms",S.rooms);ls.set("rm_bookings",S.bookings);ls.set("rm_favs",S.favs);ls.set("rm_user",S.user)};
+
+$("#cities").innerHTML=CITIES.map(c=>`<option value="${c}">`).join("");
+
+const img=(r,i=0)=>(r.images&&r.images[i])||"data:image/svg+xml;utf8,"+encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 400'><rect width='640' height='400' fill='hsl(${(r.id*47+i*30)%360},60%,${88-i*5}%)'/><text x='320' y='215' font-size='34' text-anchor='middle' fill='hsl(${(r.id*47)%360},40%,28%)' font-family='sans-serif'>${String(r.name).replace(/[<>&']/g,"")}</text></svg>`);
+
+const imgs=r=>r.images&&r.images.length?r.images:[0,1,2].map(i=>img(r,i));
+
+function toast(m){const t=$("#toast");t.textContent=m;t.style.display="block";clearTimeout(toast.t);toast.t=setTimeout(()=>t.style.display="none",3200)}
+
+function modal(h){$("#sheet").innerHTML=h;$("#ov").classList.add("open");const f=$("#sheet").querySelector("input,button");f&&f.focus()}
+
+function closeM(){$("#ov").classList.remove("open")}
+
+$("#ov").addEventListener("click",e=>{if(e.target.id==="ov"||e.target.dataset.close!==undefined)closeM()});
+
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeM()});
+
+const norm=s=>String(s).toLowerCase().replace(/[‘’'`ʻʼ]/g,"");
+
+function filtered(){const f=S.f;let a=S.rooms.filter(r=>r.status==="Approved");
+
+const q=norm(S.q.trim());if(q)a=a.filter(r=>norm(r.city).includes(q));
+
+if(f.city)a=a.filter(r=>norm(r.city).includes(norm(f.city)));
+
+if(f.district)a=a.filter(r=>norm(r.district).includes(norm(f.district)));
+
+if(f.cap)a=a.filter(r=>r.capacity>=f.cap);
+
+if(f.eq.length)a=a.filter(r=>f.eq.every(e=>r.equipment.includes(e)));
+
+if(f.min!=="")a=a.filter(r=>r.price>=+f.min);if(f.max!=="")a=a.filter(r=>r.price<=+f.max);
+
+if(S.favOnly)a=a.filter(r=>S.favs.includes(r.id));
+
+if(f.sort==="pa")a.sort((x,y)=>x.price-y.price);if(f.sort==="pd")a.sort((x,y)=>y.price-x.price);if(f.sort==="cap")a.sort((x,y)=>y.capacity-x.capacity);return a}
+
+const card=r=>`<article class="card"><a href="#room-${r.id}" class="cimg"><img src="${img(r)}" alt="${esc(r.name)}" loading="lazy"></a><button class="fav ${S.favs.includes(r.id)?"on":""}" data-fav="${r.id}" aria-label="Sevimlilarga qo‘shish" aria-pressed="${S.favs.includes(r.id)}">♥</button><div class="cb"><h3>${esc(r.name)}</h3><p class="mut">${esc(r.city)}, ${esc(r.district)}</p><p class="mut">${r.capacity} kishigacha</p><p class="eqs">${r.equipment.slice(0,3).map(esc).join(" · ")}${r.equipment.length>3?" +"+(r.equipment.length-3):""}</p><div class="row"><span class="pr"><b>${fmt(r.price)} so‘m</b> <span class="mut">/ soat</span></span><a class="btn sm" href="#room-${r.id}">Batafsil</a></div></div></article>`;
+
+function home(){$("#app").innerHTML=`<section class="hero"><h1>Roomly’ga xush kelibsiz</h1><p class="mut">O‘zbekiston bo‘ylab xonalarni soatbay ijaraga oling yoki o‘z xonangizni qo‘shing.</p></section>
+
+<div class="bar"><h2>Bo‘sh xonalar</h2><div class="bar"><label class="ck"><input type="checkbox" id="fo" ${S.favOnly?"checked":""}> Sevimlilar</label><select id="so" aria-label="Saralash"><option value="">Saralash</option><option value="pa" ${S.f.sort==="pa"?"selected":""}>Narx: arzonidan</option><option value="pd" ${S.f.sort==="pd"?"selected":""}>Narx: qimmatidan</option><option value="cig" hidden></option><option value="cap" ${S.f.sort==="cap"?"selected":""}>Sig‘im bo‘yicha</option></select></div></div><div class="grid" id="gr"></div>`;
+
+$("#fo").onchange=e=>{S.favOnly=e.target.checked;grid()};$("#so").onchange=e=>{S.f.sort=e.target.value;grid()};grid()}
+
+function grid(){const a=filtered(),g=$("#gr");if(!g)return;g.innerHTML=a.length?a.map(card).join(""):`<div class="empty"><p>Hech qanday xona topilmadi.</p><button class="btn p" data-reset>Qidiruvni tozalash</button></div>`}
+
+function resetAll(){S.q="";$("#q").value="";S.favOnly=false;S.f={city:"",district:"",cap:0,eq:[],min:"",max:"",sort:""};route()}
+
+function filterUI(){const f=S.f;modal(`<h2>Filtrlar</h2><form id="ff"><div class="r2 f"><div><label for="fc">Shahar</label><input id="fc" list="cities" value="${esc(f.city)}"></div><div><label for="fd">Tuman</label><input id="fd" value="${esc(f.district)}"></div></div>
+
+<div class="f"><label for="fcap">Minimal sig‘im</label><select id="fcap">${[[0,"Hammasi"],[1,"1+ kishi"],[2,"2+ kishi"],[4,"4+ kishi"],[6,"6+ kishi"],[10,"10+ kishi"]].map(([v,t])=>`<option value="${v}" ${f.cap===v?"selected":""}>${t}</option>`).join("")}</select></div>
+
+<div class="f"><label>Jihozlar (barchasi bo‘lishi kerak)</label><div class="ckg">${EQ.map(e=>`<label class="ck"><input type="checkbox" name="eq" value="${e}" ${f.eq.includes(e)?"checked":""}> ${e}</label>`).join("")}</div></div>
+
+<div class="r2 f"><div><label for="fmin">Narx dan (so‘m)</label><input id="fmin" inputmode="numeric" value="${esc(f.min)}"></div><div><label for="fmax">Narx gacha (so‘m)</label><input id="fmax" inputmode="numeric" value="${esc(f.max)}"></div></div>
+
+<div class="r2"><button class="btn" type="button" id="frs">Tozalash</button><button class="btn p" type="submit">Qo‘llash</button></div></form>`);
+
+$("#ff").onsubmit=e=>{e.preventDefault();const n=v=>/^\d+$/.test(v.trim())?v.trim():"";S.f={...S.f,city:$("#fc").value,district:$("#fd").value,cap:+$("#fcap").value,eq:[...document.querySelectorAll("[name=eq]:checked")].map(x=>x.value),min:n($("#fmin").value),max:n($("#fmax").value)};closeM();location.hash="home";route()};
+
+$("#frs").onclick=()=>{closeM();resetAll()}}
+
+function room(id){const r=S.rooms.find(x=>String(x.id)===id);if(!r||(r.status!=="Approved"&&r.ownerId!==S.user.id)){$("#app").innerHTML=`<div class="empty"><p>Xona topilmadi.</p><a class="btn p" href="#home">Bosh sahifa</a></div>`;return}
+
+const im=imgs(r);$("#app").innerHTML=`<p><a class="btn" href="#home">← Orqaga</a></p><div class="two"><div><img class="main-img" id="mi" src="${im[0]}" alt="${esc(r.name)}"><div class="th">${im.map((s,i)=>`<img src="${s}" data-th="${i}" class="${i?"":"on"}" alt="Rasm ${i+1}">`).join("")}</div>
+
+<div class="box" style="margin-top:16px"><h1>${esc(r.name)} ${r.status!=="Approved"?'<span class="tag">Kutilmoqda</span>':""}</h1><p class="mut">${esc(r.city)}, ${esc(r.district)} — ${esc(r.address)}</p><p>${esc(r.description)}</p><p>Maksimal sig‘im: <b>${r.capacity} kishi</b></p><div class="chips">${r.equipment.map(e=>`<span class="chip">${esc(e)}</span>`).join("")}</div><p class="mut">Mavjudlik: har kuni, 08:00–22:00 (demo)</p><p class="mut">Egasi: ${esc(r.owner)} · ${esc(r.contact)}</p></div></div>
+
+<aside class="box" id="bk"><h2>${fmt(r.price)} so‘m <span class="mut">/ soat</span></h2><form id="bf" novalidate><div class="f"><label for="bn">Ismingiz</label><input id="bn" placeholder="Ismingizni kiriting" maxlength="60" autocomplete="name" value="${S.user.demo?"":esc(S.user.name)}"><div class="err" id="en"></div></div>
+
+<div class="f"><label for="bh">Necha soatga ijaraga olasiz?</label><input id="bh" inputmode="numeric" placeholder="1 dan 8 gacha"><div class="err" id="eh"></div></div>
+
+<div class="sum"><div><span>Soatlik narx</span><b>${fmt(r.price)} so‘m</b></div><div><span>Davomiyligi</span><b id="sd">—</b></div><div><span>Jami</span><b id="st">—</b></div></div><button class="btn p" style="width:100%" type="submit">Buyurtma berish</button></form></aside></div>`;
+
+const hv=()=>{const v=$("#bh").value.trim();return /^[1-8]$/.test(v)?+v:null};
+
+$("#bh").oninput=()=>{const h=hv();$("#sd").textContent=h?h+" soat":"—";$("#st").textContent=h?fmt(h*r.price)+" so‘m":"—"};
+
+$("#bf").onsubmit=e=>{e.preventDefault();const n=$("#bn").value.trim(),raw=$("#bh").value.trim();let ok=true;
+
+$("#en").textContent=!n?(ok=false,"Ismni kiriting."):n.length<2?(ok=false,"Ism kamida 2 ta belgidan iborat bo‘lishi kerak."):n.length>50?(ok=false,"Ism 50 ta belgidan oshmasligi kerak."):"";
+
+let m="";if(!raw)m="Soatni kiriting.";else if(/^-/.test(raw))m="Manfiy son kiritib bo‘lmaydi.";else if(/[.,]/.test(raw)&&/^\d+[.,]\d*$/.test(raw))m="Faqat butun son kiriting (kasr mumkin emas).";else if(!/^\d+$/.test(raw))m="Faqat butun son kiriting.";else if(+raw===0)m="Nol bo‘lishi mumkin emas.";else if(+raw>8)m="Maksimal ijara muddati 8 soat.";
+
+$("#eh").textContent=m;if(m)ok=false;if(!ok)return;const h=+raw;
+
+const b={id:"RM-"+Date.now().toString(36).toUpperCase()+Math.random().toString(36).slice(2,5).toUpperCase(),roomId:r.id,roomName:r.name,userId:S.user.id,customer:n,hours:h,hourly:r.price,total:r.price*h,status:"Yaratildi",at:new Date().toISOString()};
+
+S.bookings.unshift(b);save();modal(`<h2>Buyurtmangiz muvaffaqiyatli yaratildi!</h2><div class="sum"><div><span>Buyurtma ID</span><b>${b.id}</b></div><div><span>Xona</span><b>${esc(b.roomName)}</b></div><div><span>Mijoz</span><b>${esc(b.customer)}</b></div><div><span>Davomiyligi</span><b>${h} soat</b></div><div><span>Jami</span><b>${fmt(b.total)} so‘m</b></div></div><p class="mut">Eslatma: to‘lov amalga oshirilmagan — bu demo buyurtma.</p><div class="r2"><a class="btn" href="#my-bookings" data-close>Buyurtmalarim</a><button class="btn p" data-close>Yopish</button></div>`)}}
+
+function roomForm(id){const old=id?S.rooms.find(x=>String(x.id)===id&&x.ownerId===S.user.id):null;if(id&&!old){$("#app").innerHTML=`<div class="empty">Xona topilmadi.</div>`;return}
+
+S.draft=old?[...old.images]:[];const o=old||{name:"",city:"",district:"",address:"",description:"",capacity:"",price:"",equipment:[],owner:S.user.demo?"":S.user.name,contact:""};
+
+const fld=(k,l,v,x="")=>`<div class="f"><label for="a\_${k}">${l}</label><input id="a\_${k}" value="${esc(v)}" ${x}><div class="err" id="e\_${k}"></div></div>`;
+
+$("#app").innerHTML=`<p><a class="btn" href="#home">← Orqaga</a></p><div class="box" style="max-width:720px;margin:8px auto 40px"><h1>${old?"Xonani tahrirlash":"Xonani ijaraga berish"}</h1><form id="af" novalidate>
+
+${fld("name","Xona nomi",o.name,'maxlength="80"')}<div class="r2">${fld("city","Shahar",o.city,'list="cities"')}${fld("district","Tuman",o.district)}</div>${fld("address","To‘liq manzil",o.address)}
+
+<div class="f"><label for="a_description">Tavsif</label><textarea id="a_description" rows="3">${esc(o.description)}</textarea><div class="err" id="e_description"></div></div>
+
+<div class="r2">${fld("capacity","Maksimal sig‘im (kishi)",o.capacity,'inputmode="numeric"')}${fld("price","Soatlik narx (so‘m)",o.price,'inputmode="numeric"')}</div>
+
+<div class="f"><label>Jihozlar</label><div class="ckg">${EQ.map(e=>`<label class="ck"><input type="checkbox" name="aeq" value="${e}" ${o.equipment.includes(e)?"checked":""}> ${e}</label>`).join("")}</div><div class="err" id="e_eq"></div></div>
+
+<div class="f"><label for="a_img">Xona rasmlari (maks. 5 ta)</label><input id="a_img" type="file" accept="image/*" multiple><div class="pv" id="pv"></div><div class="err" id="e_img"></div></div>
+
+<div class="r2">${fld("owner","Egasining ismi",o.owner)}${fld("contact","Aloqa (telefon yoki email)",o.contact)}</div>
+
+<button class="btn p" style="width:100%" type="submit">${old?"Saqlash":"Xonani yuborish"}</button></form></div>`;
+
+const pv=()=>{$("#pv").innerHTML=S.draft.map((s,i)=>`<div><img src="${s}" alt="Rasm"><button type="button" data-rmimg="${i}" aria-label="Rasmni o‘chirish">×</button></div>`).join("")};pv();window.pvRefresh=pv;
+
+$("#a_img").onchange=async e=>{for(const f of e.target.files){if(S.draft.length>=5){$("#e_img").textContent="Eng ko‘pi bilan 5 ta rasm.";break}if(!f.type.startsWith("image/"))continue;S.draft.push(await shrink(f))}e.target.value="";pv()};
+
+$("#af").onsubmit=e=>{e.preventDefault();const v=k=>$("#a\_"+k).value.trim(),E={};
+
+["name","city","district","address","owner","contact"].forEach(k=>{if(v(k).length<2)E[k]="Maydonni to‘ldiring."});
+
+if(v("description").length<10)E.description="Tavsif kamida 10 ta belgi bo‘lsin.";
+
+if(!/^[1-9]\d*$/.test(v("capacity")))E.capacity="Musbat butun son kiriting.";
+
+if(!/^\d+(\.\d+)?$/.test(v("price"))||+v("price")<=0)E.price="Musbat narx kiriting.";
+
+const eq=[...document.querySelectorAll("[name=aeq]:checked")].map(x=>x.value);if(!eq.length)E.eq="Kamida bitta jihozni tanlang.";
+
+if(!S.draft.length)E.img="Kamida bitta rasm yuklang.";
+
+["name","city","district","address","description","capacity","price","owner","contact","eq","img"].forEach(k=>{const el=$("#e\_"+k);if(el)el.textContent=E[k]||""});if(Object.keys(E).length)return;
+
+const d={name:v("name"),city:v("city"),district:v("district"),address:v("address"),description:v("description"),capacity:+v("capacity"),price:+v("price"),equipment:eq,images:[...S.draft],owner:v("owner"),contact:v("contact")};
+
+if(old){Object.assign(old,d,{status:"Pending"})}else S.rooms.unshift({id:Date.now(),ownerId:S.user.id,status:"Pending",...d});
+
+save();toast("Xona yuborildi. Holati: Kutilmoqda (tasdiqlanishi kerak).");location.hash="my-rooms"}}
+
+function shrink(f){return new Promise(res=>{const fr=new FileReader();fr.onload=()=>{const im=new Image();im.onload=()=>{const k=Math.min(1,800/im.width),c=document.createElement("canvas");c.width=im.width*k;c.height=im.height*k;c.getContext("2d").drawImage(im,0,0,c.width,c.height);res(c.toDataURL("image/jpeg",.7))};im.onerror=()=>res(fr.result);im.src=fr.result};fr.readAsDataURL(f)})}
+
+const tabs=a=>`<div class="tabs"><a class="btn ${a==="profile"?"p":""}" href="#profile">Profil</a><a class="btn ${a==="my-rooms"?"p":""}" href="#my-rooms">Xonalarim</a><a class="btn ${a==="my-bookings"?"p":""}" href="#my-bookings">Buyurtmalarim</a></div>`;
+
+function profile(){const u=S.user;$("#app").innerHTML=`<h1>Profil</h1>${tabs("profile")}<div class="box" style="max-width:560px"><p><b>${esc(u.name)}</b></p><p class="mut">${esc(u.email)}</p>${u.demo?'<p><span class="tag">Demo profil</span></p>':""}<div class="r2"><div class="sum"><b>${S.rooms.filter(r=>r.ownerId===u.id).length}</b><br><span class="mut">Xonalarim</span></div><div class="sum"><b>${S.bookings.filter(b=>b.userId===u.id).length}</b><br><span class="mut">Buyurtmalarim</span></div></div>${u.demo?`<div class="r2"><a class="btn p" href="#login">Kirish</a><a class="btn" href="#register">Ro‘yxatdan o‘tish</a></div>`:`<button class="btn" id="lo">Chiqish</button>`}</div>`;
+
+const lo=$("#lo");if(lo)lo.onclick=()=>{S.user={id:"demo-user",name:"Demo foydalanuvchi",email:"demo@roomly.uz",demo:true};save();toast("Tizimdan chiqdingiz.");route()}}
+
+function myBookings(){const a=S.bookings.filter(b=>b.userId===S.user.id);$("#app").innerHTML=`<h1>Buyurtmalarim</h1>${tabs("my-bookings")}<div class="box">${a.length?a.map(b=>`<div class="li"><div><b>${esc(b.roomName)}</b><p class="mut">${b.id} · ${esc(b.customer)} · ${b.hours} soat · ${new Date(b.at).toLocaleString("uz-UZ")}</p></div><div><b>${fmt(b.total)} so‘m</b><br><span class="tag ok">${b.status}</span></div></div>`).join(""):'<p class="empty">Hozircha buyurtmalar yo‘q.</p>'}</div>`}
+
+function myRooms(){const a=S.rooms.filter(r=>r.ownerId===S.user.id);$("#app").innerHTML=`<h1>Xonalarim</h1>${tabs("my-rooms")}<div class="box">${a.length?a.map(r=>`<div class="li"><div><a href="#room-${r.id}"><b>${esc(r.name)}</b></a> <span class="tag ${r.status==="Approved"?"ok":""}">${r.status==="Approved"?"Tasdiqlangan":"Kutilmoqda"}</span><p class="mut">${esc(r.city)} · ${fmt(r.price)} so‘m/soat</p></div><div class="tabs">${r.status!=="Approved"?`<button class="btn sm" data-appr="${r.id}" title="Demo: administrator tasdig‘ini simulyatsiya qiladi">Demo: tasdiqlash</button>`:""}<a class="btn sm" href="#edit-${r.id}">Tahrirlash</a><button class="btn sm d" data-del="${r.id}">O‘chirish</button></div></div>`).join(""):'<p class="empty">Siz hali xona qo‘shmagansiz.</p>'}<a class="btn p" href="#add-room">＋ Xona qo‘shish</a></div>`}
+
+function auth(reg){$("#app").innerHTML=`<div class="box" style="max-width:420px;margin:24px auto"><h1>${reg?"Ro‘yxatdan o‘tish":"Kirish"}</h1><p class="mut">Demo rejim: akkaunt faqat shu brauzerda saqlanadi.</p><form id="au" novalidate>${reg?`<div class="f"><label for="u1">To‘liq ism</label><input id="u1" autocomplete="name"><div class="err" id="x1"></div></div>`:""}<div class="f"><label for="u2">Email</label><input id="u2" type="email" autocomplete="email"><div class="err" id="x2"></div></div><div class="f"><label for="u3">Parol</label><input id="u3" type="password" autocomplete="${reg?"new-password":"current-password"}"><div class="err" id="x3"></div></div><button class="btn p" style="width:100%">${reg?"Ro‘yxatdan o‘tish":"Kirish"}</button></form><p class="mut"><a href="#${reg?"login":"register"}" style="color:var(--pr)">${reg?"Akkauntim bor":"Akkaunt yaratish"}</a></p></div>`;
+
+$("#au").onsubmit=e=>{e.preventDefault();let ok=true;const nm=reg?$("#u1").value.trim():"",em=$("#u2").value.trim(),pw=$("#u3").value;
+
+if(reg){$("#x1").textContent=nm.length<2?(ok=false,"Ismni kiriting."):""}$("#x2").textContent=/^\S+@\S+\.\S+$/.test(em)?"":(ok=false,"To‘g‘ri email kiriting.");$("#x3").textContent=pw.length>=6?"":(ok=false,"Parol kamida 6 ta belgi.");if(!ok)return;
+
+S.user={id:"u-"+em.toLowerCase(),name:nm||em.split("@")[0],email:em};save();toast("Xush kelibsiz, "+S.user.name+"!");location.hash="profile"}}
+
+function route(){const h=location.hash.slice(1)||"home";window.scrollTo(0,0);
+
+if(h==="home")home();else if(h.startsWith("room-"))room(h.slice(5));else if(h==="add-room")roomForm();else if(h.startsWith("edit-"))roomForm(h.slice(5));else if(h==="profile")profile();else if(h==="login")auth(false);else if(h==="register")auth(true);else if(h==="my-bookings")myBookings();else if(h==="my-rooms")myRooms();else home()}
+
+$("#sf").onsubmit=e=>{e.preventDefault();S.q=$("#q").value;if(location.hash.slice(1)&&location.hash!=="#home"){location.hash="home"}else{home()}};
+
+$("#q").oninput=e=>{S.q=e.target.value;if((location.hash.slice(1)||"home")!=="home")location.hash="home";else grid()};
+
+$("#fb").onclick=filterUI;
+
+document.addEventListener("click",e=>{const t=e.target.closest("button,img");if(!t)return;const d=t.dataset;
+
+if(d.fav){const id=+d.fav,i=S.favs.indexOf(id);i>-1?S.favs.splice(i,1):S.favs.push(id);save();if((location.hash.slice(1)||"home")==="home")grid()}
+
+if(d.reset!==undefined)resetAll();
+
+if(d.th!==undefined){$("#mi").src=t.src;document.querySelectorAll(".th img").forEach(x=>x.classList.toggle("on",x===t))}
+
+if(d.rmimg!==undefined){S.draft.splice(+d.rmimg,1);window.pvRefresh()}
+
+if(d.del&&confirm("Xonani o‘chirasizmi?")){S.rooms=S.rooms.filter(r=>!(String(r.id)===d.del&&r.ownerId===S.user.id));save();toast("Xona o‘chirildi.");myRooms()}
+
+if(d.appr){const r=S.rooms.find(x=>String(x.id)===d.appr&&x.ownerId===S.user.id);if(r){r.status="Approved";save();toast("Xona tasdiqlandi (demo).");myRooms()}}});
+
+addEventListener("hashchange",route);
+
+function fit(){$("#fbt").style.display=innerWidth>=480?"inline":"none"}addEventListener("resize",fit);fit();
+
+route();
+
+</script></body></html>
